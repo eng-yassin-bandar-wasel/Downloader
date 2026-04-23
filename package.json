@@ -1,0 +1,14 @@
+{
+  "name": "yt-sub-downloader",
+  "version": "1.0.0",
+  "description": "YouTube Subtitle Downloader using Electron and Python",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^41.3.0"
+  }
+}
