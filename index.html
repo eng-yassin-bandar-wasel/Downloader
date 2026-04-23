@@ -1,164 +1,137 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YT Sub Grabber Pro</title>
-    <style>
-        :root {
-            --bg-color: #0f172a;
-            --panel-bg: rgba(30, 41, 59, 0.85);
-            --text-color: #f8fafc;
-            --accent: #ef4444;
-            --accent-hover: #dc2626;
-            --success: #10b981;
-            --border: rgba(255, 255, 255, 0.1);
-        }
-
-        body {
-            margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color); color: var(--text-color);
-            display: flex; height: 100vh; overflow: hidden;
-        }
-
-        /* شريط جانبي بتصميم زجاجي أنيق */
-        .sidebar {
-            width: 260px; background: var(--panel-bg); padding: 20px;
-            display: flex; flex-direction: column; gap: 12px;
-            backdrop-filter: blur(12px); border-right: 1px solid var(--border);
-            z-index: 10;
-        }
-
-        h2 { margin: 0 0 15px 0; font-size: 1rem; font-weight: 600; letter-spacing: 0.5px; color: #fff;}
-        
-        /* أزرار بحجم احترافي ومناسب */
-        button {
-            padding: 8px 14px; border: 1px solid transparent; border-radius: 6px; 
-            cursor: pointer; background-color: var(--accent); color: white; 
-            font-size: 0.85rem; font-weight: 500; transition: all 0.2s ease;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        button:hover:not(:disabled) { background-color: var(--accent-hover); transform: translateY(-1px); }
-        button:disabled { background-color: #475569; cursor: not-allowed; transform: none; opacity: 0.7;}
-        
-        button.secondary { background-color: transparent; border: 1px solid #475569; color: #cbd5e1; }
-        button.secondary:hover { background-color: #334155; color: #fff; border-color: #64748b;}
-
-        /* قسم الإعدادات المصغر في الشريط */
-        .settings-group {
-            display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;
-        }
-        .settings-group label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;}
-        select {
-            padding: 6px 10px; border-radius: 4px; border: 1px solid #334155;
-            background: #1e293b; color: white; font-size: 0.85rem; outline: none;
-        }
-
-        /* صندوق الحالة */
-        .status-box {
-            margin-top: auto; padding: 12px; background: rgba(0,0,0,0.3); 
-            border-radius: 6px; border: 1px solid var(--border);
-        }
-        .status-title { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px; }
-        #status-text { font-size: 0.85rem; color: #e2e8f0; line-height: 1.4; word-break: break-word;}
-        .success-text { color: var(--success) !important; font-weight: bold;}
-
-        .browser-container { flex: 1; display: flex; }
-        webview { flex: 1; width: 100%; height: 100%; border: none; background: #fff;}
-        
-        /* مؤشر التحميل */
-        .loader {
-            border: 2px solid rgba(255,255,255,0.1); border-top: 2px solid #fff;
-            border-radius: 50%; width: 12px; height: 12px; animation: spin 1s linear infinite;
-            display: none;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
+    <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="panel">
+                <div>
+                    <h1>YT Sub Grabber Pro</h1>
+                    <p class="muted-text">Download subtitles from videos and playlists with live progress feedback.</p>
+                </div>
 
-    <div class="sidebar">
-        <h2>YT Grabber Pro</h2>
-        
-        <div class="settings-group">
-            <label>Subtitle Language</label>
-            <select id="sub-lang">
-                <option value="en">English</option>
-                <option value="ar">Arabic (العربية)</option>
-                <option value="fr">French</option>
-            </select>
-        </div>
+                <div class="control-group">
+                    <label for="sub-lang">Subtitle Language</label>
+                    <select id="sub-lang">
+                        <option value="en">English</option>
+                        <option value="ar">Arabic (العربية)</option>
+                        <option value="fr">French</option>
+                    </select>
+                </div>
 
-        <button onclick="downloadCurrentVideo()" id="btn-download">
-            <span id="btn-icon">⬇️</span>
-            <div class="loader" id="btn-loader"></div>
-            <span id="btn-text">Download Subtitles</span>
-        </button>
-        
-        <button class="secondary" onclick="document.getElementById('yt-webview').reload()">
-            🔄 Reload YouTube
-        </button>
+                <button id="btn-download" type="button">
+                    <span id="btn-text">Download Subtitles</span>
+                </button>
+                <button id="btn-reload" type="button" class="secondary">
+                    🔄 Reload YouTube
+                </button>
 
-        <div class="status-box">
-            <div class="status-title">System Status</div>
-            <div id="status-text">Ready to download.</div>
-        </div>
-    </div>
+                <div class="status-card">
+                    <h2>Status</h2>
+                    <div id="status-text" class="status-line status-normal">Ready to download.</div>
+                    <div class="progress-bar" aria-hidden="true">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <div class="progress-label">
+                        <span id="progress-label-text">Waiting</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
 
-    <div class="browser-container">
-        <webview id="yt-webview" src="https://www.youtube.com"></webview>
+        <section class="browser-container">
+            <div class="browser-header">
+                <h2>Embedded YouTube Browser</h2>
+                <span>Navigate to a video or playlist, then download subtitles.</span>
+            </div>
+            <webview id="yt-webview" src="https://www.youtube.com" partition="persist:yt-sub-grabber"></webview>
+        </section>
     </div>
 
     <script>
-        const { ipcRenderer } = require('electron');
         const webview = document.getElementById('yt-webview');
         const btnDownload = document.getElementById('btn-download');
+        const btnReload = document.getElementById('btn-reload');
         const btnText = document.getElementById('btn-text');
-        const btnIcon = document.getElementById('btn-icon');
-        const btnLoader = document.getElementById('btn-loader');
         const statusText = document.getElementById('status-text');
-        
-        function downloadCurrentVideo() {
-            const currentUrl = webview.getURL(); 
-            
-            if(!currentUrl.includes('youtube.com/watch') && !currentUrl.includes('youtube.com/playlist')) {
-                statusText.innerText = "⚠️ Please open a video or playlist first.";
-                statusText.className = "";
+        const progressFill = document.getElementById('progress-fill');
+        const progressLabelText = document.getElementById('progress-label-text');
+        const progressPercent = document.getElementById('progress-percent');
+
+        const setStatus = (message, type = 'normal') => {
+            statusText.innerText = message;
+            statusText.className = `status-line status-${type}`;
+        };
+
+        const updateProgress = (percentText) => {
+            const normalized = percentText.replace('%', '').trim();
+            const numeric = Number(normalized);
+            const width = Number.isFinite(numeric) ? `${Math.min(Math.max(numeric, 0), 100)}%` : percentText;
+            progressFill.style.width = width;
+            progressPercent.innerText = width;
+            progressLabelText.innerText = width === '0%' ? 'Preparing' : 'Downloading';
+        };
+
+        const resetControls = () => {
+            btnDownload.disabled = false;
+            btnText.innerText = 'Download Subtitles';
+        };
+
+        const setWorking = () => {
+            btnDownload.disabled = true;
+            btnText.innerText = 'Downloading…';
+        };
+
+        const isSupportedUrl = (url) => {
+            return /(?:youtube\.com\/(watch|playlist|shorts)|youtu\.be\/)/i.test(url);
+        };
+
+        const downloadCurrentVideo = () => {
+            const currentUrl = webview.getURL();
+            if (!isSupportedUrl(currentUrl)) {
+                setStatus('⚠️ Please open a valid YouTube video or playlist.', 'error');
                 return;
             }
-
             const subLang = document.getElementById('sub-lang').value;
-            
-            // تغيير حالة الزر لمنع التكرار (Bug Fix)
-            btnDownload.disabled = true;
-            btnIcon.style.display = 'none';
-            btnLoader.style.display = 'block';
-            btnText.innerText = "Downloading...";
-            
-            statusText.innerText = "Extracting details and downloading... Please wait.";
-            statusText.className = "";
-            
-            // إرسال الأمر
-            ipcRenderer.send('start-download', { url: currentUrl, lang: subLang });
-        }
+            setWorking();
+            setStatus('Extracting details and downloading subtitles…', 'normal');
+            updateProgress('0%');
+            window.electron.send('start-download', { url: currentUrl, lang: subLang });
+        };
 
-        // عند نجاح أو انتهاء التحميل
-        ipcRenderer.on('download-complete', (event, message) => {
-            // إعادة الزر لحالته الطبيعية
-            btnDownload.disabled = false;
-            btnIcon.style.display = 'inline';
-            btnLoader.style.display = 'none';
-            btnText.innerText = "Download Subtitles";
+        btnDownload.addEventListener('click', downloadCurrentVideo);
+        btnReload.addEventListener('click', () => webview.reload());
 
-            // عرض النتيجة
-            statusText.innerText = message;
-            if(message.includes("SUCCESS")) {
-                statusText.className = "success-text"; // تلوين النص بالأخضر
+        window.electron.on('download-progress', (payload) => {
+            if (payload && payload.percent) {
+                setStatus(`Downloading… ${payload.percent}`,'normal');
+                updateProgress(payload.percent);
             }
         });
 
-        ipcRenderer.on('download-error', (event, message) => {
-            // لا نوقف البرنامج عند التحذيرات، فقط نعرضها
-            console.log(message);
+        window.electron.on('download-complete', (message) => {
+            resetControls();
+            setStatus(message, 'success');
+            updateProgress('100%');
+        });
+
+        window.electron.on('download-error', (message) => {
+            resetControls();
+            setStatus(`Error: ${message}`, 'error');
+            updateProgress('0%');
+        });
+
+        window.electron.on('download-status', (message) => {
+            if (message) {
+                setStatus(message, 'normal');
+            }
         });
     </script>
 </body>
