@@ -1,13 +1,13 @@
 {
-  "name": "yt-sub-downloader",
-  "version": "1.0.0",
-  "description": "YouTube Subtitle Downloader using Electron and Python",
+  "name": "subly",
+  "version": "2.0.0",
+  "description": "Subly — premium YouTube subtitle studio built with Electron and Python (yt-dlp).",
   "main": "main.js",
+  "author": "eng-yassin-bandar-wasel",
+  "license": "ISC",
   "scripts": {
     "start": "electron ."
   },
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
     "electron": "^41.3.0"
   }

@@ -1,138 +1,306 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" data-accent="violet">
 <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YT Sub Grabber Pro</title>
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; frame-src https://www.youtube.com; script-src 'self'; connect-src 'self' https:;"
+    />
+    <title>Subly — Subtitle Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <div class="app-shell">
-        <aside class="sidebar">
-            <div class="panel">
-                <div>
-                    <h1>YT Sub Grabber Pro</h1>
-                    <p class="muted-text">Download subtitles from videos and playlists with live progress feedback.</p>
-                </div>
-
-                <div class="control-group">
-                    <label for="sub-lang">Subtitle Language</label>
-                    <select id="sub-lang">
-                        <option value="en">English</option>
-                        <option value="ar">Arabic (العربية)</option>
-                        <option value="fr">French</option>
-                    </select>
-                </div>
-
-                <button id="btn-download" type="button">
-                    <span id="btn-text">Download Subtitles</span>
-                </button>
-                <button id="btn-reload" type="button" class="secondary">
-                    🔄 Reload YouTube
-                </button>
-
-                <div class="status-card">
-                    <h2>Status</h2>
-                    <div id="status-text" class="status-line status-normal">Ready to download.</div>
-                    <div class="progress-bar" aria-hidden="true">
-                        <div id="progress-fill" class="progress-fill"></div>
-                    </div>
-                    <div class="progress-label">
-                        <span id="progress-label-text">Waiting</span>
-                        <span id="progress-percent">0%</span>
-                    </div>
-                </div>
-            </div>
-        </aside>
-
-        <section class="browser-container">
-            <div class="browser-header">
-                <h2>Embedded YouTube Browser</h2>
-                <span>Navigate to a video or playlist, then download subtitles.</span>
-            </div>
-            <webview id="yt-webview" src="https://www.youtube.com" partition="persist:yt-sub-grabber"></webview>
-        </section>
+    <div class="aurora" aria-hidden="true">
+        <span class="aurora-blob aurora-blob--a"></span>
+        <span class="aurora-blob aurora-blob--b"></span>
+        <span class="aurora-blob aurora-blob--c"></span>
     </div>
 
-    <script>
-        const webview = document.getElementById('yt-webview');
-        const btnDownload = document.getElementById('btn-download');
-        const btnReload = document.getElementById('btn-reload');
-        const btnText = document.getElementById('btn-text');
-        const statusText = document.getElementById('status-text');
-        const progressFill = document.getElementById('progress-fill');
-        const progressLabelText = document.getElementById('progress-label-text');
-        const progressPercent = document.getElementById('progress-percent');
+    <div class="app-shell">
+        <nav class="rail" aria-label="Primary">
+            <div class="rail__brand" title="Subly">
+                <span class="brand-mark" aria-hidden="true"></span>
+                <span class="brand-word">Subly</span>
+            </div>
+            <ul class="rail__nav" id="rail-nav" role="tablist">
+                <li>
+                    <button role="tab" data-tab="download" class="rail-link is-active" aria-selected="true">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m6 10 6 6 6-6"/><path d="M5 21h14"/></svg>
+                        <span>Download</span>
+                    </button>
+                </li>
+                <li>
+                    <button role="tab" data-tab="queue" class="rail-link">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h16"/><path d="m18 10 3 2-3 2"/></svg>
+                        <span>Queue</span>
+                        <span class="badge" id="queue-count" hidden>0</span>
+                    </button>
+                </li>
+                <li>
+                    <button role="tab" data-tab="history" class="rail-link">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 2"/></svg>
+                        <span>History</span>
+                    </button>
+                </li>
+                <li>
+                    <button role="tab" data-tab="settings" class="rail-link">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.12-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.88 1.7 1.7 0 0 0 4.3 7l-.06-.06a2 2 0 1 1 2.83-2.83L7.13 4.17a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9c.28.6.87 1 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1z"/></svg>
+                        <span>Settings</span>
+                    </button>
+                </li>
+            </ul>
+            <div class="rail__footer">
+                <div class="app-version" id="app-version">v1.0</div>
+            </div>
+        </nav>
 
-        const setStatus = (message, type = 'normal') => {
-            statusText.innerText = message;
-            statusText.className = `status-line status-${type}`;
-        };
+        <main class="workspace">
+            <header class="topbar">
+                <div class="topbar__title">
+                    <h1 id="page-title">Download</h1>
+                    <p class="muted" id="page-subtitle">Grab subtitles from any YouTube video or playlist.</p>
+                </div>
+                <div class="topbar__actions">
+                    <div class="chip" id="concurrency-chip" title="Active downloads">
+                        <span class="chip__dot"></span>
+                        <span id="active-count">0 active</span>
+                    </div>
+                </div>
+            </header>
 
-        const updateProgress = (percentText) => {
-            const normalized = percentText.replace('%', '').trim();
-            const numeric = Number(normalized);
-            const width = Number.isFinite(numeric) ? `${Math.min(Math.max(numeric, 0), 100)}%` : percentText;
-            progressFill.style.width = width;
-            progressPercent.innerText = width;
-            progressLabelText.innerText = width === '0%' ? 'Preparing' : 'Downloading';
-        };
+            <!-- Download tab ---------------------------------------------->
+            <section class="tab-panel is-active" data-panel="download">
+                <div class="download-grid">
+                    <aside class="panel control-panel">
+                        <div class="panel__head">
+                            <h2>Configure</h2>
+                            <p class="muted small">Pick a language and tap Fetch.</p>
+                        </div>
 
-        const resetControls = () => {
-            btnDownload.disabled = false;
-            btnText.innerText = 'Download Subtitles';
-        };
+                        <div class="field">
+                            <label for="sub-lang">Subtitle language</label>
+                            <div class="select-wrap">
+                                <select id="sub-lang">
+                                    <option value="en">English</option>
+                                    <option value="ar">Arabic · العربية</option>
+                                    <option value="fr">French · Français</option>
+                                    <option value="es">Spanish · Español</option>
+                                    <option value="de">German · Deutsch</option>
+                                    <option value="ja">Japanese · 日本語</option>
+                                    <option value="ko">Korean · 한국어</option>
+                                    <option value="pt">Portuguese · Português</option>
+                                    <option value="ru">Russian · Русский</option>
+                                    <option value="hi">Hindi · हिन्दी</option>
+                                    <option value="zh-Hans">Chinese (Simplified)</option>
+                                </select>
+                                <svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            </div>
+                        </div>
 
-        const setWorking = () => {
-            btnDownload.disabled = true;
-            btnText.innerText = 'Downloading…';
-        };
+                        <div class="field">
+                            <label for="sub-format">Format</label>
+                            <div class="segmented" role="radiogroup" aria-label="Subtitle format">
+                                <button type="button" class="segmented__btn is-active" data-format="srt" role="radio" aria-checked="true">SRT</button>
+                                <button type="button" class="segmented__btn" data-format="vtt" role="radio" aria-checked="false">VTT</button>
+                            </div>
+                        </div>
 
-        const isSupportedUrl = (url) => {
-            return /(?:youtube\.com\/(watch|playlist|shorts)|youtu\.be\/)/i.test(url);
-        };
+                        <div class="field">
+                            <label>Output folder</label>
+                            <div class="folder-picker">
+                                <span class="folder-picker__path" id="output-path" title="">—</span>
+                                <button type="button" class="btn btn--ghost btn--icon" id="btn-pick-folder" title="Choose folder">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                                </button>
+                                <button type="button" class="btn btn--ghost btn--icon" id="btn-open-folder" title="Open folder">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+                                </button>
+                            </div>
+                        </div>
 
-        const downloadCurrentVideo = () => {
-            const currentUrl = webview.getURL();
-            if (!isSupportedUrl(currentUrl)) {
-                setStatus('⚠️ Please open a valid YouTube video or playlist.', 'error');
-                return;
-            }
-            const subLang = document.getElementById('sub-lang').value;
-            setWorking();
-            setStatus('Extracting details and downloading subtitles…', 'normal');
-            updateProgress('0%');
-            window.electron.send('start-download', { url: currentUrl, lang: subLang });
-        };
+                        <button id="btn-download" class="btn btn--primary btn--lg" type="button">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m6 10 6 6 6-6"/><path d="M5 21h14"/></svg>
+                            <span>Fetch subtitles</span>
+                        </button>
 
-        btnDownload.addEventListener('click', downloadCurrentVideo);
-        btnReload.addEventListener('click', () => webview.reload());
+                        <button id="btn-reload" class="btn btn--ghost" type="button">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                            <span>Reload browser</span>
+                        </button>
 
-        window.electron.on('download-progress', (payload) => {
-            if (payload && payload.percent) {
-                setStatus(`Downloading… ${payload.percent}`,'normal');
-                updateProgress(payload.percent);
-            }
-        });
+                        <div class="tip" id="status-toast" role="status" aria-live="polite" hidden></div>
+                    </aside>
 
-        window.electron.on('download-complete', (message) => {
-            resetControls();
-            setStatus(message, 'success');
-            updateProgress('100%');
-        });
+                    <section class="panel browser-panel">
+                        <div class="browser-panel__head">
+                            <div class="browser-panel__controls">
+                                <button type="button" class="icon-btn" id="wv-back" title="Back">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                                </button>
+                                <button type="button" class="icon-btn" id="wv-forward" title="Forward">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                                </button>
+                            </div>
+                            <div class="browser-panel__address" id="wv-address">youtube.com</div>
+                            <div class="browser-panel__status">
+                                <span class="pulse" id="wv-pulse" aria-hidden="true"></span>
+                                <span id="wv-status">Ready</span>
+                            </div>
+                        </div>
+                        <div class="browser-panel__frame">
+                            <webview id="yt-webview" src="https://www.youtube.com" partition="persist:yt-sub-grabber" allowpopups></webview>
+                        </div>
+                    </section>
+                </div>
+            </section>
 
-        window.electron.on('download-error', (message) => {
-            resetControls();
-            setStatus(`Error: ${message}`, 'error');
-            updateProgress('0%');
-        });
+            <!-- Queue tab ------------------------------------------------->
+            <section class="tab-panel" data-panel="queue">
+                <div class="panel">
+                    <div class="panel__head">
+                        <h2>Active jobs</h2>
+                        <p class="muted small">Downloads run in parallel and stream live progress here.</p>
+                    </div>
+                    <div class="list" id="queue-list">
+                        <div class="empty-state">
+                            <div class="empty-state__mark"></div>
+                            <h3>No active downloads</h3>
+                            <p class="muted small">Start a download from the Download tab to see it here.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-        window.electron.on('download-status', (message) => {
-            if (message) {
-                setStatus(message, 'normal');
-            }
-        });
-    </script>
+            <!-- History tab ----------------------------------------------->
+            <section class="tab-panel" data-panel="history">
+                <div class="panel">
+                    <div class="panel__head panel__head--split">
+                        <div>
+                            <h2>History</h2>
+                            <p class="muted small">Recent downloads, newest first.</p>
+                        </div>
+                        <button class="btn btn--ghost btn--sm" id="btn-clear-history">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            <span>Clear all</span>
+                        </button>
+                    </div>
+                    <div class="list" id="history-list">
+                        <div class="empty-state">
+                            <div class="empty-state__mark"></div>
+                            <h3>Nothing yet</h3>
+                            <p class="muted small">Your downloads will appear here.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings tab ---------------------------------------------->
+            <section class="tab-panel" data-panel="settings">
+                <div class="settings-grid">
+                    <div class="panel">
+                        <div class="panel__head">
+                            <h2>Preferences</h2>
+                            <p class="muted small">Defaults used for every download.</p>
+                        </div>
+
+                        <div class="field">
+                            <label for="s-default-lang">Default language</label>
+                            <div class="select-wrap">
+                                <select id="s-default-lang">
+                                    <option value="en">English</option>
+                                    <option value="ar">Arabic</option>
+                                    <option value="fr">French</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="de">German</option>
+                                    <option value="ja">Japanese</option>
+                                    <option value="ko">Korean</option>
+                                    <option value="pt">Portuguese</option>
+                                    <option value="ru">Russian</option>
+                                    <option value="hi">Hindi</option>
+                                    <option value="zh-Hans">Chinese (Simplified)</option>
+                                </select>
+                                <svg class="caret" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="s-format">Default format</label>
+                            <div class="segmented" role="radiogroup" aria-label="Default format">
+                                <button type="button" class="segmented__btn" data-setting-format="srt" role="radio">SRT</button>
+                                <button type="button" class="segmented__btn" data-setting-format="vtt" role="radio">VTT</button>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label>Output folder</label>
+                            <div class="folder-picker">
+                                <span class="folder-picker__path" id="s-output-path" title="">—</span>
+                                <button type="button" class="btn btn--ghost btn--icon" id="s-pick-folder" title="Choose folder">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="s-max">Max concurrent downloads</label>
+                            <div class="stepper">
+                                <button type="button" class="icon-btn" id="s-max-dec">−</button>
+                                <span id="s-max-val" class="stepper__value">3</span>
+                                <button type="button" class="icon-btn" id="s-max-inc">+</button>
+                            </div>
+                        </div>
+
+                        <div class="field field--toggle">
+                            <div>
+                                <label for="s-keep-history">Keep download history</label>
+                                <p class="muted small">Store completed downloads locally.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="s-keep-history" checked />
+                                <span class="switch__slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="field">
+                            <label>Accent</label>
+                            <div class="swatches" id="swatches">
+                                <button class="swatch is-active" data-accent="violet" style="--swatch:#7c5cff"></button>
+                                <button class="swatch" data-accent="cyan" style="--swatch:#22d3ee"></button>
+                                <button class="swatch" data-accent="emerald" style="--swatch:#34d399"></button>
+                                <button class="swatch" data-accent="rose" style="--swatch:#fb7185"></button>
+                                <button class="swatch" data-accent="amber" style="--swatch:#fbbf24"></button>
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button class="btn btn--ghost btn--sm" id="btn-reset-settings">Reset to defaults</button>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel__head">
+                            <h2>About</h2>
+                            <p class="muted small">Runtime details.</p>
+                        </div>
+                        <dl class="meta-list" id="meta-list">
+                            <dt>App version</dt><dd id="meta-version">—</dd>
+                            <dt>Platform</dt><dd id="meta-platform">—</dd>
+                            <dt>User data</dt><dd id="meta-userdata" class="mono truncate">—</dd>
+                        </dl>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="renderer.js"></script>
 </body>
 </html>
