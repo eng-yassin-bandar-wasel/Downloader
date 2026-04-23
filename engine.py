@@ -1,130 +1,252 @@
-﻿import json
+"""Subtitle download engine.
+
+A thin, well-structured wrapper around ``yt_dlp`` that emits newline-delimited
+JSON events on stdout so the Electron main process can track progress for an
+arbitrary number of concurrent jobs.
+
+Usage::
+
+    python engine.py --url <url> --lang <lang> [--output-dir <dir>] \
+                     [--job-id <id>] [--format srt|vtt]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import yt_dlp
 
-YOUTUBE_HOSTS = {
-    'youtube.com',
-    'www.youtube.com',
-    'm.youtube.com',
-    'youtu.be',
-}
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+YOUTUBE_HOSTS: frozenset[str] = frozenset({
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "music.youtube.com",
+    "youtu.be",
+})
+
+ALLOWED_PATH_PREFIXES: tuple[str, ...] = ("/watch", "/playlist", "/shorts", "/embed")
+
+INVALID_FILENAME_CHARS = re.compile(r'[\\/*?:"<>|]')
+COLLAPSE_WHITESPACE = re.compile(r"[\s\n\r]+")
+DEFAULT_FOLDER = "YT_Subtitles"
+MAX_FOLDER_NAME_LEN = 120
+
+
+# ---------------------------------------------------------------------------
+# IO helpers
+# ---------------------------------------------------------------------------
+
+def emit(event: str, job_id: str | None = None, **fields: Any) -> None:
+    """Emit a newline-delimited JSON event to stdout."""
+    payload: dict[str, Any] = {"event": event}
+    if job_id is not None:
+        payload["jobId"] = job_id
+    payload.update(fields)
+    print(json.dumps(payload, ensure_ascii=False), flush=True)
+
+
+# ---------------------------------------------------------------------------
+# Validation & path helpers
+# ---------------------------------------------------------------------------
 
 def sanitize_filename(name: str) -> str:
-    cleaned = re.sub(r'[\\/*?:"<>|]', '', str(name))
-    cleaned = re.sub(r'[\s\n\r]+', ' ', cleaned).strip()
-    return cleaned[:120] or 'YT_Subtitles'
+    cleaned = INVALID_FILENAME_CHARS.sub("", str(name))
+    cleaned = COLLAPSE_WHITESPACE.sub(" ", cleaned).strip()
+    return cleaned[:MAX_FOLDER_NAME_LEN] or DEFAULT_FOLDER
 
 
 def is_valid_youtube_url(url: str) -> bool:
     try:
         parsed = urlparse(url.strip())
-        if parsed.scheme not in ('http', 'https'):
-            return False
-        host = parsed.netloc.lower()
-        if host not in YOUTUBE_HOSTS:
-            return False
-        if 'youtu.be' in host:
-            return bool(parsed.path.strip('/'))
-        return parsed.path.startswith(('/watch', '/playlist', '/shorts', '/embed'))
-    except Exception:
+    except ValueError:
         return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = parsed.netloc.lower()
+    if host not in YOUTUBE_HOSTS:
+        return False
+    if host == "youtu.be":
+        return bool(parsed.path.strip("/"))
+    return parsed.path.startswith(ALLOWED_PATH_PREFIXES)
 
 
-def create_safe_directory(raw_name: str) -> Path:
-    base_dir = Path.cwd().resolve()
-    folder_name = sanitize_filename(raw_name)
-    target_dir = (base_dir / folder_name).resolve()
-    if base_dir not in target_dir.parents and target_dir != base_dir:
-        raise ValueError('Resolved directory is outside of the application folder.')
-    target_dir.mkdir(parents=True, exist_ok=True)
-    return target_dir
+def resolve_output_directory(raw_name: str, base: Path) -> Path:
+    base = base.resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    folder = sanitize_filename(raw_name)
+    target = (base / folder).resolve()
+    # Guard against path traversal via crafted titles.
+    try:
+        target.relative_to(base)
+    except ValueError as exc:
+        raise ValueError("Resolved directory escaped the output folder.") from exc
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
-def emit_json(payload: dict) -> None:
-    print(json.dumps(payload, ensure_ascii=False), flush=True)
+# ---------------------------------------------------------------------------
+# Download core
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Job:
+    url: str
+    lang: str
+    output_dir: Path
+    subtitle_format: str
+    job_id: str | None
 
 
-def progress_hook(data: dict) -> None:
-    status = data.get('status')
-    if status == 'downloading':
-        percent = data.get('_percent_str', '').strip()
-        eta = data.get('eta')
-        emit_json({
-            'event': 'progress',
-            'status': 'downloading',
-            'percent': percent if percent else '0%',
-            'eta': eta if eta is not None else None,
-        })
-    elif status == 'finished':
-        emit_json({
-            'event': 'progress',
-            'status': 'finished',
-            'filename': data.get('filename', ''),
-        })
+def _build_progress_hook(job: Job):
+    def hook(data: dict[str, Any]) -> None:
+        status = data.get("status")
+        if status == "downloading":
+            percent = (data.get("_percent_str") or "").strip() or "0%"
+            emit(
+                "progress",
+                job_id=job.job_id,
+                status="downloading",
+                percent=percent,
+                eta=data.get("eta"),
+                speed=data.get("_speed_str"),
+                filename=data.get("filename"),
+            )
+        elif status == "finished":
+            emit(
+                "progress",
+                job_id=job.job_id,
+                status="finished",
+                filename=data.get("filename", ""),
+            )
+
+    return hook
 
 
-def download_subs(url: str, lang: str) -> str:
-    url = url.strip()
-    if not url or not is_valid_youtube_url(url):
-        raise ValueError('Invalid YouTube URL. Please navigate to a valid video or playlist page.')
+def _extract_title(url: str) -> str:
+    probe_opts = {
+        "quiet": True,
+        "extract_flat": True,
+        "skip_download": True,
+        "no_warnings": True,
+    }
+    with yt_dlp.YoutubeDL(probe_opts) as probe:
+        info = probe.extract_info(url, download=False)
+    return info.get("playlist_title") or info.get("title") or DEFAULT_FOLDER
 
-    info_options = {
-        'quiet': True,
-        'extract_flat': True,
-        'skip_download': True,
+
+def _download_options(job: Job, target_dir: Path) -> dict[str, Any]:
+    outtmpl = str(
+        target_dir
+        / "%(playlist_index|)s%(playlist_index&_|)s%(title)s.%(ext)s"
+    )
+    return {
+        "skip_download": True,
+        "writesubtitles": True,
+        "writeautomaticsub": True,
+        "subtitleslangs": [job.lang],
+        "outtmpl": outtmpl,
+        "postprocessors": [
+            {"key": "FFmpegSubtitlesConvertor", "format": job.subtitle_format}
+        ],
+        "quiet": True,
+        "no_warnings": True,
+        "progress_hooks": [_build_progress_hook(job)],
+        # yt_dlp can fetch playlist fragments concurrently when available.
+        "concurrent_fragment_downloads": 4,
     }
 
-    with yt_dlp.YoutubeDL(info_options) as ydl:
-        info = ydl.extract_info(url, download=False)
-        raw_name = info.get('playlist_title') or info.get('title') or 'YT_Subtitles'
-        target_dir = create_safe_directory(raw_name)
 
-    ydl_opts = {
-        'skip_download': True,
-        'writesubtitles': True,
-        'writeautomaticsub': True,
-        'subtitleslangs': [lang],
-        'outtmpl': str(target_dir / '%(playlist_index|)s%(playlist_index&_|)s%(title)s.%(ext)s'),
-        'postprocessors': [{
-            'key': 'FFmpegSubtitlesConvertor',
-            'format': 'srt',
-        }],
-        'quiet': True,
-        'no_warnings': True,
-        'progress_hooks': [progress_hook],
-    }
+def run_job(job: Job) -> str:
+    if not is_valid_youtube_url(job.url):
+        raise ValueError(
+            "Invalid YouTube URL. Open a video, playlist, Shorts, or embed link."
+        )
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+    title = _extract_title(job.url)
+    target_dir = resolve_output_directory(title, job.output_dir)
 
-    return f"SUCCESS: Subtitles saved in '{target_dir.name}'"
+    emit(
+        "started",
+        job_id=job.job_id,
+        title=title,
+        directory=str(target_dir),
+        url=job.url,
+        lang=job.lang,
+    )
+
+    with yt_dlp.YoutubeDL(_download_options(job, target_dir)) as ydl:
+        ydl.download([job.url])
+
+    return f"Saved subtitles to '{target_dir.name}'"
 
 
-def main() -> int:
-    if len(sys.argv) < 3:
-        emit_json({
-            'event': 'error',
-            'status': 'failed',
-            'message': 'Missing parameters. Usage: python engine.py <url> <lang>',
-        })
-        return 1
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 
-    target_url = sys.argv[1]
-    target_lang = sys.argv[2]
+def _parse_args(argv: list[str]) -> Job:
+    parser = argparse.ArgumentParser(
+        description="Download YouTube subtitles as SRT/VTT."
+    )
+    parser.add_argument("--url", required=True, help="YouTube video/playlist URL.")
+    parser.add_argument("--lang", required=True, help="Subtitle language code.")
+    parser.add_argument(
+        "--output-dir",
+        default=str(Path.cwd()),
+        help="Base directory for the generated subtitle folder.",
+    )
+    parser.add_argument(
+        "--format",
+        dest="subtitle_format",
+        default="srt",
+        choices=("srt", "vtt"),
+        help="Subtitle container format.",
+    )
+    parser.add_argument("--job-id", dest="job_id", default=None)
+
+    # Backwards-compatibility: allow positional `url lang` invocations.
+    if argv and not argv[0].startswith("--") and len(argv) >= 2:
+        argv = ["--url", argv[0], "--lang", argv[1], *argv[2:]]
+
+    ns = parser.parse_args(argv)
+    return Job(
+        url=ns.url,
+        lang=ns.lang,
+        output_dir=Path(ns.output_dir).expanduser(),
+        subtitle_format=ns.subtitle_format,
+        job_id=ns.job_id,
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    try:
+        job = _parse_args(argv)
+    except SystemExit:
+        emit("error", status="failed", message="Invalid command-line arguments.")
+        return 2
 
     try:
-        message = download_subs(target_url, target_lang)
-        emit_json({'event': 'complete', 'status': 'success', 'message': message})
-        return 0
-    except Exception as exc:
-        emit_json({'event': 'error', 'status': 'failed', 'message': str(exc)})
+        message = run_job(job)
+    except Exception as exc:  # pragma: no cover - surfaced to UI.
+        emit("error", job_id=job.job_id, status="failed", message=str(exc))
         return 1
 
+    emit("complete", job_id=job.job_id, status="success", message=message)
+    return 0
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     raise SystemExit(main())
